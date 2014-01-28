@@ -55,6 +55,6 @@ class CSSWallDisplay extends WallDisplay
     data = @callback(time)
     # color dots
     for i in [0...@dotDivs.length]
-      color = data[i]
-      @dotDivs[i].css("background-color", "rgb(" + color.r + ", " + color.g + ", " + color.b + ")")
+      color = data.get(i)
+      @dotDivs[i].css("background-color", "rgb(" + color.toRGB() + ")")
 

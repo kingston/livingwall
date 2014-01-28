@@ -6,13 +6,23 @@ class LivingWallController
     @dotsh = Math.floor($(window).height() / @settings.dotWidth)
 
     @display = new app.settings.displayClass(@dotsw, @dotsh)
+    @diffuseSources = []
+
+    @lightness = 0 # out of 1
+
+  initialize: ->
+    @diffuseSources.push(new DiffuseLightSource(new Color(20, 0, 0)))
 
   run: ->
+    @initialize()
     @display.initialize((time) => @getColors(time))
  
   getColors: (time) ->
-    colors = []
-    for y in [1..@dotsh]
-      for x in [1..@dotsw]
-        colors.push(new Color(200, 100, 100))
+    start = @lightness * 256
+    baseColor = new Color(start, start, start)
+    colors = new ColorMatrix(@dotsw, @dotsh, baseColor)
+
+    for source in @diffuseSources
+      source.addColor(colors, time)
+
     return colors
