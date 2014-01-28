@@ -8,13 +8,18 @@
   <link href='http://fonts.googleapis.com/css?family=Playfair+Display' rel='stylesheet' type='text/css'>
   <script type="text/javascript" src="js/jquery-1.11.0.min.js"></script>
   <script type="text/javascript" src="js/blur.min.js"></script>
+  <script type="text/javascript" src="js/modernizr.js"></script>
   <script type="text/javascript" src="js/app.js"></script>
 </head>
 <body>
 <div id="opening-overlay">
   <h1>The Living Wall</h1>
   <h2>by Kingston Tam</h2>
+  <h3 id="status">Please enable webcam access above to continue...</h3>
 </div>
+<video autoplay id="webcam" width="640" height="480"></video>
+<canvas width="640" height="480" id="background-canvas"></canvas>
+<canvas width="640" height="480" id="difference-canvas"></canvas>
 
 </body>
 </html>

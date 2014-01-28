@@ -1,13 +1,14 @@
 $(->
   settings =
     displayClass: CSSWallDisplay
-    dotWidth: 40
+    dotWidth: 50
   app = new LivingWallApp(settings)
   app.run()
 )
 
 class LivingWallApp
   constructor: (settings) ->
+    @video = new VideoSource()
     @startingControllers = [OpeningOverlayController, LivingWallController]
     @settings = settings
 

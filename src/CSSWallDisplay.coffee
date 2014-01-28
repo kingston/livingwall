@@ -20,7 +20,7 @@ class CSSWallDisplay extends WallDisplay
     # start updates
     @interval = setInterval(=>
       @updateScreen()
-    , 300)
+    , 150)
 
     $(window).resize(=>
       @layoutDots()
@@ -52,6 +52,9 @@ class CSSWallDisplay extends WallDisplay
 
   updateScreen: ->
     time = new Date().getTime()
+    @lastTime = time unless @lastTime
+    console.log(1000 / (time - @lastTime) + " fps")
+    @lastTime = time
     data = @callback(time)
     # color dots
     for i in [0...@dotDivs.length]
