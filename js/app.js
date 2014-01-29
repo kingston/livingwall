@@ -635,7 +635,7 @@
       $("body").append(this.wallDiv);
       this.interval = setInterval(function() {
         return _this.updateScreen();
-      }, 75);
+      }, 125);
       return $(window).resize(function() {
         return _this.layoutDots();
       });

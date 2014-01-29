@@ -28,7 +28,7 @@ class CSSWallDisplay extends WallDisplay
     # start updates
     @interval = setInterval(=>
       @updateScreen()
-    , 75)
+    , 125)
 
     $(window).resize(=>
       @layoutDots()
