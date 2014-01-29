@@ -1,0 +1,46 @@
+#opening-overlay {
+  padding-top: 400px;
+  color: #fff;
+  z-index: 9999;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  position: fixed;
+  background-color: rgba(0, 0, 0, 0.3); }
+  #opening-overlay h1, #opening-overlay h2, #opening-overlay h3 {
+    text-align: center;
+    text-shadow: 0.1em 0.1em #333;
+    font-family: 'Playfair Display', serif; }
+  #opening-overlay h1 {
+    font-size: 2.3em; }
+  #opening-overlay h2 {
+    font-size: 1.7em; }
+  #opening-overlay h3 {
+    font-size: 1.3em; }
+
+body {
+  background-color: #162436;
+  overflow: hidden; }
+
+#webcam {
+  display: none; }
+
+#background-canvas {
+  display: none; }
+
+#difference-canvas {
+  display: none; }
+
+/* CSSWallDisplay CSS */
+.dot-container {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  overflow: hidden; }
+
+.dot {
+  border-radius: 50%;
+  position: absolute; }

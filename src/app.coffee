@@ -1,7 +1,7 @@
 $(->
   settings =
     displayClass: CSSWallDisplay
-    dotWidth: 50
+    dotWidth: 40
   app = new LivingWallApp(settings)
   app.run()
 )

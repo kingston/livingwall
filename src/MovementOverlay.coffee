@@ -1,10 +1,12 @@
 class MovementOverlay extends ColorSource
-  constructor: (app, w, h) ->
+  constructor: (app, controller, w, h) ->
     @video = app.video
+    @controller = controller
     app.video.subscribeToUpdate((source, blended)=> @updateColors(source,blended))
     @w = w
     @h = h
     @colors = new ColorMatrix(w, h, new Color(0,0,0))
+    @colors2 = new ColorMatrix(w, h, new Color(0,0,0))
     @brightnessHistory = []
     for i in [0...w*h]
       @brightnessHistory.push(0)
@@ -15,26 +17,40 @@ class MovementOverlay extends ColorSource
       return if Util.now() - @firstUpdate < 500
     else
       @firstUpdate = Util.now()
-    propagationRate = 0.3
     dampingRatio = 0.1
     # update brightnesses from movement
+    hueFactor = Easing.easeInQuint(1-@controller.lastBrightness)
+    console.log(hueFactor)
     for x in [0...@w]
       for y in [0...@h]
         # get appropriate brightness from canvas
         vw = @video.getVideoWidth()
         vh = @video.getVideoHeight()
-        dotw = vw / @w
-        doth = vh / @h
-        blendedData = @video.differenceContext.getImageData(x * dotw, y * doth, dotw, doth)
-        brightness = ImageUtil.averageBrightness(blendedData.data)
+        dotw = Math.floor(vw / @w)
+        doth = Math.floor(vh / @h)
+
+        average = 0
+        data = blended.data
+
+        for vx in [x*dotw...(x+1)*dotw]
+          for vy in [y*doth...(y+1)*doth]
+            i = vy * vw + vx
+            average += data[i*4]
+
+        brightness = average / (dotw * doth)
 
         bh = @brightnessHistory[y*@w+x]
-        bh = bh * 0.7 + (brightness / 256.0) * 0.3
+        bh = bh * 0.7 + (brightness * 1.5 / 256.0) * 0.3
         @brightnessHistory[y*@w+x] = bh
-        hue = 0.7 - bh * 0.6
+        hue = Easing.easeInQuad(0 + (1-bh) * 1 * hueFactor)
+
+        # add random factor
+        hue += Math.random() / 10 - 0.05
+        hue = Math.max(0, Math.min(1, hue))
 
         if brightness > 10
           newColor = Color.fromHSV(hue, brightness / 256, brightness / 256)
+          # screen with theme color
           @colors.screen(x, y, newColor)
 
     # disperse colors
@@ -44,19 +60,28 @@ class MovementOverlay extends ColorSource
         rsum = 0.0
         gsum = 0.0
         bsum = 0.0
-        count = 0.0
         for dx in [-1..1]
           for dy in [-1..1]
             continue if x + dx < 0 or x + dx >= @w
             continue if y + dy < 0 or y + dy >= @h
+            continue if Math.abs(dx) == Math.abs(dy)
             color = @colors.getAt(x + dx, y + dy)
             rsum += color.r
             gsum += color.g
             bsum += color.b
-            count++
-        mergedColor = new Color(rsum / count, gsum / count, bsum / count)
-        @colors.add(x, y, mergedColor, propagationRate)
-        @colors.getAt(x,y).darken(0.1)
+
+        color = @colors2.getAt(x,y)
+        r = color.r
+        g = color.g
+        b = color.b
+        mergedColor = new Color(rsum / 2 - r, gsum / 2 - g, bsum / 2 - b)
+        @colors2.set(x, y, mergedColor)
+        @colors2.getAt(x,y).darken(dampingRatio)
+
+    # swap buffers
+    colorsBak = @colors2
+    @colors2 = @colors
+    @colors = colorsBak
 
   addColor: (matrix, time) ->
     for x in [0...@w]

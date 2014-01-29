@@ -24,7 +24,7 @@ class LivingWallController
     @addRandomDiffuseSource()
     @addRandomDiffuseSource()
 
-    @overlay = new MovementOverlay(@app, @dotsw, @dotsh)
+    @overlay = new MovementOverlay(@app, @, @dotsw, @dotsh)
 
     @app.video.subscribeToUpdate((source, blended)=>
       @updateEmotions(source, blended)
@@ -58,7 +58,7 @@ class LivingWallController
       colors.forEach((i, color) =>
         color.merge(@panicColor, @panic)
       )
-      @panic = @panic * 0.9
+      @panic = @panic * 0.95
 
     return colors
 
@@ -66,17 +66,18 @@ class LivingWallController
     @firstEmotionUpdate = Util.now() unless @firstEmotionUpdate
     diff = Util.now() - @lastEmotionUpdate
     brightness = (ImageUtil.averageBrightness(blended.data)) / 256
-    if (brightness - @lastBrightness) / (diff / 1000) > 0.5
+    if (brightness - @lastBrightness) / (diff / 1000) > 1.2
       if Util.now() - @firstEmotionUpdate > 1000
         @panic = 1
+        @themeColor = new Color(200,0,0)
     #@lightness = @lightness * 0.8 + brightness * 0.2
-    red = Math.min(256, brightness * 256 * 2)
-    green = Math.min(256, brightness * 128 * 2)
+    red = Math.min(256, brightness * 256 * 2.5)
+    green = Math.min(256, brightness * 128 * 2.5)
     blue = 30
     newColor = new Color(red, green, blue)
     if Util.now() - @firstEmotionUpdate > 1000
       @themeColor.screen(newColor)
-      @themeColor.merge(newColor, 0.05)
+      @themeColor.merge(newColor, 0.01)
 
     @lastBrightness = brightness
     @lastEmotionUpdate = Util.now()

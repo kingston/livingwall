@@ -4,259 +4,6 @@
     __hasProp = {}.hasOwnProperty,
     __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
 
-  $(function() {
-    var app, settings;
-    settings = {
-      displayClass: CSSWallDisplay,
-      dotWidth: 50
-    };
-    app = new LivingWallApp(settings);
-    return app.run();
-  });
-
-  LivingWallApp = (function() {
-    function LivingWallApp(settings) {
-      this.video = new VideoSource();
-      this.startingControllers = [OpeningOverlayController, LivingWallController];
-      this.settings = settings;
-    }
-
-    LivingWallApp.prototype.run = function() {
-      var c, controller, _i, _len, _ref, _results;
-      _ref = this.startingControllers;
-      _results = [];
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        controller = _ref[_i];
-        c = new controller(this);
-        _results.push(c.run());
-      }
-      return _results;
-    };
-
-    return LivingWallApp;
-
-  })();
-
-  OpeningOverlayController = (function() {
-    function OpeningOverlayController(app) {
-      this.app = app;
-      this.overlay = $("#opening-overlay");
-    }
-
-    OpeningOverlayController.prototype.run = function() {
-      var start,
-        _this = this;
-      this.overlay.blurjs({
-        source: 'body',
-        radius: 5
-      });
-      start = Util.now();
-      return this.app.video.initialize(function(success, message) {
-        var diff;
-        if (!success) {
-          $("#status").text(message);
-          return;
-        }
-        diff = start + 3000 - Util.now();
-        if (diff < 0) {
-          return _this.overlay.fadeOut(1000);
-        } else {
-          return setTimeout(function() {
-            return _this.overlay.fadeOut(1000);
-          }, diff);
-        }
-      });
-    };
-
-    return OpeningOverlayController;
-
-  })();
-
-  LivingWallController = (function() {
-    function LivingWallController(app) {
-      this.app = app;
-      this.settings = app.settings;
-      this.dotsw = Math.floor($(window).width() / this.settings.dotWidth);
-      this.dotsh = Math.floor($(window).height() / this.settings.dotWidth);
-      this.display = new app.settings.displayClass(this.dotsw, this.dotsh);
-      this.diffuseSources = [];
-      this.lightness = 0;
-      this.themeColor = new Color(0, 0, 30);
-      this.panicColor = new Color(255, 0, 0);
-    }
-
-    LivingWallController.prototype.addRandomDiffuseSource = function() {
-      var color, duration, location;
-      color = this.themeColor.copy().merge(Color.getRandom(), 0.15);
-      location = {
-        x: Util.randInt(0, this.dotsw),
-        y: Util.randInt(0, this.dotsh)
-      };
-      duration = Util.randInt(4000, 20000);
-      return this.diffuseSources.push(new DiffuseLightSource(color, duration, location));
-    };
-
-    LivingWallController.prototype.initialize = function() {
-      var _this = this;
-      this.addRandomDiffuseSource();
-      this.addRandomDiffuseSource();
-      this.addRandomDiffuseSource();
-      this.overlay = new MovementOverlay(this.app, this.dotsw, this.dotsh);
-      return this.app.video.subscribeToUpdate(function(source, blended) {
-        return _this.updateEmotions(source, blended);
-      });
-    };
-
-    LivingWallController.prototype.run = function() {
-      var _this = this;
-      this.initialize();
-      return this.display.initialize(function(time) {
-        return _this.getColors(time);
-      });
-    };
-
-    LivingWallController.prototype.getColors = function(time) {
-      var baseColor, colors, source, sourcesToRemove, _i, _j, _len, _len1, _ref,
-        _this = this;
-      this.app.video.update();
-      baseColor = new Color(255, 255, 255);
-      baseColor.merge(this.themeColor, 1 - this.lightness);
-      colors = new ColorMatrix(this.dotsw, this.dotsh, baseColor);
-      sourcesToRemove = [];
-      _ref = this.diffuseSources;
-      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-        source = _ref[_i];
-        if (!source.addColor(colors, time)) {
-          sourcesToRemove.push(source);
-        }
-      }
-      for (_j = 0, _len1 = sourcesToRemove.length; _j < _len1; _j++) {
-        source = sourcesToRemove[_j];
-        this.diffuseSources.splice(this.diffuseSources.indexOf(source), 1);
-        this.addRandomDiffuseSource();
-      }
-      this.overlay.addColor(colors, time);
-      if (this.panic > 0.1) {
-        colors.forEach(function(i, color) {
-          return color.merge(_this.panicColor, _this.panic);
-        });
-        this.panic = this.panic * 0.9;
-      }
-      return colors;
-    };
-
-    LivingWallController.prototype.updateEmotions = function(source, blended) {
-      var blue, brightness, diff, green, newColor, red;
-      if (!this.firstEmotionUpdate) {
-        this.firstEmotionUpdate = Util.now();
-      }
-      diff = Util.now() - this.lastEmotionUpdate;
-      brightness = (ImageUtil.averageBrightness(blended.data)) / 256;
-      if ((brightness - this.lastBrightness) / (diff / 1000) > 0.5) {
-        if (Util.now() - this.firstEmotionUpdate > 1000) {
-          this.panic = 1;
-        }
-      }
-      red = Math.min(256, brightness * 256 * 2);
-      green = Math.min(256, brightness * 128 * 2);
-      blue = 30;
-      newColor = new Color(red, green, blue);
-      if (Util.now() - this.firstEmotionUpdate > 1000) {
-        this.themeColor.screen(newColor);
-        this.themeColor.merge(newColor, 0.05);
-      }
-      this.lastBrightness = brightness;
-      return this.lastEmotionUpdate = Util.now();
-    };
-
-    return LivingWallController;
-
-  })();
-
-  WallDisplay = (function() {
-    function WallDisplay(dotsw, dotsh) {
-      this.dotsw = dotsw;
-      this.dotsh = dotsh;
-    }
-
-    WallDisplay.prototype.initialize = function(screenCallback) {
-      return this.callback = screenCallback;
-    };
-
-    return WallDisplay;
-
-  })();
-
-  CSSWallDisplay = (function(_super) {
-    __extends(CSSWallDisplay, _super);
-
-    function CSSWallDisplay() {
-      _ref = CSSWallDisplay.__super__.constructor.apply(this, arguments);
-      return _ref;
-    }
-
-    CSSWallDisplay.prototype.initialize = function(screenCallback) {
-      var dot, i, left, _i, _ref1,
-        _this = this;
-      CSSWallDisplay.__super__.initialize.call(this, screenCallback);
-      this.wallDiv = $("<div id='circle-container'>");
-      this.dotDivs = [];
-      for (i = _i = 0, _ref1 = this.dotsw * this.dotsh; 0 <= _ref1 ? _i < _ref1 : _i > _ref1; i = 0 <= _ref1 ? ++_i : --_i) {
-        left = dot = $("<div>").addClass('dot');
-        this.dotDivs.push(dot);
-        this.wallDiv.append(dot);
-      }
-      this.layoutDots();
-      this.updateScreen();
-      $("body").append(this.wallDiv);
-      this.interval = setInterval(function() {
-        return _this.updateScreen();
-      }, 150);
-      return $(window).resize(function() {
-        return _this.layoutDots();
-      });
-    };
-
-    CSSWallDisplay.prototype.layoutDots = function() {
-      var col, contentHeight, contentWidth, dotWidth, i, left, leftOffset, row, screenHeight, screenWidth, top, topOffset, _i, _ref1;
-      screenWidth = $(window).width();
-      screenHeight = $(window).height();
-      dotWidth = Math.floor(Math.min(screenWidth / this.dotsw, screenHeight / this.dotsh));
-      contentWidth = dotWidth * this.dotsw;
-      contentHeight = dotWidth * this.dotsh;
-      leftOffset = Math.round((screenWidth - contentWidth) / 2.0);
-      topOffset = Math.round((screenHeight - contentHeight) / 2.0);
-      for (i = _i = 0, _ref1 = this.dotDivs.length; 0 <= _ref1 ? _i < _ref1 : _i > _ref1; i = 0 <= _ref1 ? ++_i : --_i) {
-        row = Math.floor(i / this.dotsw);
-        col = i % this.dotsw;
-        left = dotWidth * col + leftOffset;
-        top = dotWidth * row + topOffset;
-        this.dotDivs[i].css("left", left).css("top", top).css("width", dotWidth).css("height", dotWidth);
-      }
-      return null;
-    };
-
-    CSSWallDisplay.prototype.updateScreen = function() {
-      var color, data, i, time, _i, _ref1, _results;
-      time = new Date().getTime();
-      if (!this.lastTime) {
-        this.lastTime = time;
-      }
-      console.log(1000 / (time - this.lastTime) + " fps");
-      this.lastTime = time;
-      data = this.callback(time);
-      _results = [];
-      for (i = _i = 0, _ref1 = this.dotDivs.length; 0 <= _ref1 ? _i < _ref1 : _i > _ref1; i = 0 <= _ref1 ? ++_i : --_i) {
-        color = data.get(i);
-        _results.push(this.dotDivs[i].css("background-color", "rgb(" + color.toRGB() + ")"));
-      }
-      return _results;
-    };
-
-    return CSSWallDisplay;
-
-  })(WallDisplay);
-
   Color = (function() {
     function Color(red, green, blue) {
       this.r = red;
@@ -347,11 +94,11 @@
 
   ColorMatrix = (function() {
     function ColorMatrix(w, h, baseColor) {
-      var i, _i, _ref1;
+      var i, _i, _ref;
       this.colors = [];
       this.w = w;
       this.h = h;
-      for (i = _i = 0, _ref1 = this.w * this.h; 0 <= _ref1 ? _i < _ref1 : _i > _ref1; i = 0 <= _ref1 ? ++_i : --_i) {
+      for (i = _i = 0, _ref = this.w * this.h; 0 <= _ref ? _i < _ref : _i > _ref; i = 0 <= _ref ? ++_i : --_i) {
         this.colors.push(baseColor.copy());
       }
     }
@@ -412,10 +159,10 @@
     WaveLightSource.prototype.updateWaveCharacteristics = function(time) {};
 
     WaveLightSource.prototype.addColor = function(colors, time) {
-      var alpha, color, dist, factor, result, x, y, _i, _j, _ref1, _ref2;
+      var alpha, color, dist, factor, result, x, y, _i, _j, _ref, _ref1;
       result = this.updateWaveCharacteristics(time);
-      for (x = _i = 0, _ref1 = colors.w; 0 <= _ref1 ? _i < _ref1 : _i > _ref1; x = 0 <= _ref1 ? ++_i : --_i) {
-        for (y = _j = 0, _ref2 = colors.h; 0 <= _ref2 ? _j < _ref2 : _j > _ref2; y = 0 <= _ref2 ? ++_j : --_j) {
+      for (x = _i = 0, _ref = colors.w; 0 <= _ref ? _i < _ref : _i > _ref; x = 0 <= _ref ? ++_i : --_i) {
+        for (y = _j = 0, _ref1 = colors.h; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; y = 0 <= _ref1 ? ++_j : --_j) {
           dist = Util.dist(this.center, {
             x: x,
             y: y
@@ -484,6 +231,488 @@
     return DiffuseLightSource;
 
   })(WaveLightSource);
+
+  LivingWallController = (function() {
+    function LivingWallController(app) {
+      this.app = app;
+      this.settings = app.settings;
+      this.dotsw = Math.floor($(window).width() / this.settings.dotWidth);
+      this.dotsh = Math.floor($(window).height() / this.settings.dotWidth);
+      this.display = new app.settings.displayClass(this.dotsw, this.dotsh);
+      this.diffuseSources = [];
+      this.lightness = 0;
+      this.themeColor = new Color(0, 0, 30);
+      this.panicColor = new Color(255, 0, 0);
+    }
+
+    LivingWallController.prototype.addRandomDiffuseSource = function() {
+      var color, duration, location;
+      color = this.themeColor.copy().merge(Color.getRandom(), 0.15);
+      location = {
+        x: Util.randInt(0, this.dotsw),
+        y: Util.randInt(0, this.dotsh)
+      };
+      duration = Util.randInt(4000, 20000);
+      return this.diffuseSources.push(new DiffuseLightSource(color, duration, location));
+    };
+
+    LivingWallController.prototype.initialize = function() {
+      var _this = this;
+      this.addRandomDiffuseSource();
+      this.addRandomDiffuseSource();
+      this.addRandomDiffuseSource();
+      this.overlay = new MovementOverlay(this.app, this, this.dotsw, this.dotsh);
+      return this.app.video.subscribeToUpdate(function(source, blended) {
+        return _this.updateEmotions(source, blended);
+      });
+    };
+
+    LivingWallController.prototype.run = function() {
+      var _this = this;
+      this.initialize();
+      return this.display.initialize(function(time) {
+        return _this.getColors(time);
+      });
+    };
+
+    LivingWallController.prototype.getColors = function(time) {
+      var baseColor, colors, source, sourcesToRemove, _i, _j, _len, _len1, _ref,
+        _this = this;
+      this.app.video.update();
+      baseColor = new Color(255, 255, 255);
+      baseColor.merge(this.themeColor, 1 - this.lightness);
+      colors = new ColorMatrix(this.dotsw, this.dotsh, baseColor);
+      sourcesToRemove = [];
+      _ref = this.diffuseSources;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        source = _ref[_i];
+        if (!source.addColor(colors, time)) {
+          sourcesToRemove.push(source);
+        }
+      }
+      for (_j = 0, _len1 = sourcesToRemove.length; _j < _len1; _j++) {
+        source = sourcesToRemove[_j];
+        this.diffuseSources.splice(this.diffuseSources.indexOf(source), 1);
+        this.addRandomDiffuseSource();
+      }
+      this.overlay.addColor(colors, time);
+      if (this.panic > 0.1) {
+        colors.forEach(function(i, color) {
+          return color.merge(_this.panicColor, _this.panic);
+        });
+        this.panic = this.panic * 0.95;
+      }
+      return colors;
+    };
+
+    LivingWallController.prototype.updateEmotions = function(source, blended) {
+      var blue, brightness, diff, green, newColor, red;
+      if (!this.firstEmotionUpdate) {
+        this.firstEmotionUpdate = Util.now();
+      }
+      diff = Util.now() - this.lastEmotionUpdate;
+      brightness = (ImageUtil.averageBrightness(blended.data)) / 256;
+      if ((brightness - this.lastBrightness) / (diff / 1000) > 1.2) {
+        if (Util.now() - this.firstEmotionUpdate > 1000) {
+          this.panic = 1;
+          this.themeColor = new Color(200, 0, 0);
+        }
+      }
+      red = Math.min(256, brightness * 256 * 2.5);
+      green = Math.min(256, brightness * 128 * 2.5);
+      blue = 30;
+      newColor = new Color(red, green, blue);
+      if (Util.now() - this.firstEmotionUpdate > 1000) {
+        this.themeColor.screen(newColor);
+        this.themeColor.merge(newColor, 0.01);
+      }
+      this.lastBrightness = brightness;
+      return this.lastEmotionUpdate = Util.now();
+    };
+
+    return LivingWallController;
+
+  })();
+
+  MovementOverlay = (function(_super) {
+    __extends(MovementOverlay, _super);
+
+    function MovementOverlay(app, controller, w, h) {
+      var i, _i, _ref,
+        _this = this;
+      this.video = app.video;
+      this.controller = controller;
+      app.video.subscribeToUpdate(function(source, blended) {
+        return _this.updateColors(source, blended);
+      });
+      this.w = w;
+      this.h = h;
+      this.colors = new ColorMatrix(w, h, new Color(0, 0, 0));
+      this.colors2 = new ColorMatrix(w, h, new Color(0, 0, 0));
+      this.brightnessHistory = [];
+      for (i = _i = 0, _ref = w * h; 0 <= _ref ? _i < _ref : _i > _ref; i = 0 <= _ref ? ++_i : --_i) {
+        this.brightnessHistory.push(0);
+      }
+    }
+
+    MovementOverlay.prototype.updateColors = function(source, blended) {
+      var average, b, bh, black, brightness, bsum, color, colorsBak, dampingRatio, data, doth, dotw, dx, dy, g, gsum, hue, hueFactor, i, mergedColor, newColor, r, rsum, vh, vw, vx, vy, x, y, _i, _j, _k, _l, _m, _n, _o, _p, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7;
+      black = new Color(0, 0, 0);
+      if (this.firstUpdate) {
+        if (Util.now() - this.firstUpdate < 500) {
+          return;
+        }
+      } else {
+        this.firstUpdate = Util.now();
+      }
+      dampingRatio = 0.1;
+      hueFactor = Easing.easeInQuint(1 - this.controller.lastBrightness);
+      console.log(hueFactor);
+      for (x = _i = 0, _ref = this.w; 0 <= _ref ? _i < _ref : _i > _ref; x = 0 <= _ref ? ++_i : --_i) {
+        for (y = _j = 0, _ref1 = this.h; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; y = 0 <= _ref1 ? ++_j : --_j) {
+          vw = this.video.getVideoWidth();
+          vh = this.video.getVideoHeight();
+          dotw = Math.floor(vw / this.w);
+          doth = Math.floor(vh / this.h);
+          average = 0;
+          data = blended.data;
+          for (vx = _k = _ref2 = x * dotw, _ref3 = (x + 1) * dotw; _ref2 <= _ref3 ? _k < _ref3 : _k > _ref3; vx = _ref2 <= _ref3 ? ++_k : --_k) {
+            for (vy = _l = _ref4 = y * doth, _ref5 = (y + 1) * doth; _ref4 <= _ref5 ? _l < _ref5 : _l > _ref5; vy = _ref4 <= _ref5 ? ++_l : --_l) {
+              i = vy * vw + vx;
+              average += data[i * 4];
+            }
+          }
+          brightness = average / (dotw * doth);
+          bh = this.brightnessHistory[y * this.w + x];
+          bh = bh * 0.7 + (brightness * 1.5 / 256.0) * 0.3;
+          this.brightnessHistory[y * this.w + x] = bh;
+          hue = Easing.easeInQuad(0 + (1 - bh) * 1 * hueFactor);
+          hue += Math.random() / 10 - 0.05;
+          hue = Math.max(0, Math.min(1, hue));
+          if (brightness > 10) {
+            newColor = Color.fromHSV(hue, brightness / 256, brightness / 256);
+            this.colors.screen(x, y, newColor);
+          }
+        }
+      }
+      for (x = _m = 0, _ref6 = this.w; 0 <= _ref6 ? _m < _ref6 : _m > _ref6; x = 0 <= _ref6 ? ++_m : --_m) {
+        for (y = _n = 0, _ref7 = this.h; 0 <= _ref7 ? _n < _ref7 : _n > _ref7; y = 0 <= _ref7 ? ++_n : --_n) {
+          rsum = 0.0;
+          gsum = 0.0;
+          bsum = 0.0;
+          for (dx = _o = -1; _o <= 1; dx = ++_o) {
+            for (dy = _p = -1; _p <= 1; dy = ++_p) {
+              if (x + dx < 0 || x + dx >= this.w) {
+                continue;
+              }
+              if (y + dy < 0 || y + dy >= this.h) {
+                continue;
+              }
+              if (Math.abs(dx) === Math.abs(dy)) {
+                continue;
+              }
+              color = this.colors.getAt(x + dx, y + dy);
+              rsum += color.r;
+              gsum += color.g;
+              bsum += color.b;
+            }
+          }
+          color = this.colors2.getAt(x, y);
+          r = color.r;
+          g = color.g;
+          b = color.b;
+          mergedColor = new Color(rsum / 2 - r, gsum / 2 - g, bsum / 2 - b);
+          this.colors2.set(x, y, mergedColor);
+          this.colors2.getAt(x, y).darken(dampingRatio);
+        }
+      }
+      colorsBak = this.colors2;
+      this.colors2 = this.colors;
+      return this.colors = colorsBak;
+    };
+
+    MovementOverlay.prototype.addColor = function(matrix, time) {
+      var x, y, _i, _j, _ref, _ref1;
+      for (x = _i = 0, _ref = this.w; 0 <= _ref ? _i < _ref : _i > _ref; x = 0 <= _ref ? ++_i : --_i) {
+        for (y = _j = 0, _ref1 = this.h; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; y = 0 <= _ref1 ? ++_j : --_j) {
+          matrix.screen(x, y, this.colors.getAt(x, y));
+          matrix.add(x, y, this.colors.getAt(x, y), 0.2);
+        }
+      }
+      return true;
+    };
+
+    return MovementOverlay;
+
+  })(ColorSource);
+
+  OpeningOverlayController = (function() {
+    function OpeningOverlayController(app) {
+      this.app = app;
+      this.overlay = $("#opening-overlay");
+    }
+
+    OpeningOverlayController.prototype.run = function() {
+      var start,
+        _this = this;
+      this.overlay.blurjs({
+        source: 'body',
+        radius: 5
+      });
+      start = Util.now();
+      return this.app.video.initialize(function(success, message) {
+        var diff;
+        if (!success) {
+          $("#status").text(message);
+          return;
+        }
+        diff = start + 3000 - Util.now();
+        if (diff < 0) {
+          return _this.overlay.fadeOut(1000);
+        } else {
+          return setTimeout(function() {
+            return _this.overlay.fadeOut(1000);
+          }, diff);
+        }
+      });
+    };
+
+    return OpeningOverlayController;
+
+  })();
+
+  VideoSource = (function() {
+    function VideoSource() {
+      this.backgroundCanvas = $("#background-canvas")[0];
+      this.differenceCanvas = $("#difference-canvas")[0];
+      this.backgroundContext = this.backgroundCanvas.getContext('2d');
+      this.differenceContext = this.differenceCanvas.getContext('2d');
+      this.backgroundContext.translate(this.backgroundCanvas.width, 0);
+      this.backgroundContext.scale(-1, 1);
+      this.isInitialized = false;
+    }
+
+    VideoSource.prototype.getVideoWidth = function() {
+      return this.backgroundCanvas.width;
+    };
+
+    VideoSource.prototype.getVideoHeight = function() {
+      return this.backgroundCanvas.height;
+    };
+
+    VideoSource.prototype.initialize = function(callback) {
+      var gUM,
+        _this = this;
+      if (Modernizr.getusermedia) {
+        callback(false, "Sorry, you don't have webcam support.");
+      }
+      gUM = Modernizr.prefixed('getUserMedia', navigator);
+      gUM({
+        video: true
+      }, function(localStream) {
+        _this.video = document.querySelector('video');
+        _this.video.src = window.URL.createObjectURL(localStream);
+        $(window).resize(function() {
+          return _this.resize();
+        });
+        _this.resize();
+        _this.isInitialized = true;
+        return callback(true);
+      }, function(err) {
+        console.log(err);
+        return callback(false, "Could not open up webcam (" + err.name + ")");
+      });
+      return this.subscribers = [];
+    };
+
+    VideoSource.prototype.resize = function() {
+      $(this.backgroundCanvas).width($(window).width());
+      $(this.backgroundCanvas).height($(window).height());
+      $(this.differenceCanvas).width($(window).width());
+      return $(this.differenceCanvas).height($(window).height());
+    };
+
+    VideoSource.prototype.update = function() {
+      var blendedData, height, sourceData, subscriber, width, _i, _len, _ref, _results;
+      if (!this.isInitialized) {
+        return;
+      }
+      this.backgroundContext.drawImage(this.video, 0, 0, this.video.width, this.video.height);
+      width = this.backgroundCanvas.width;
+      height = this.backgroundCanvas.height;
+      sourceData = this.backgroundContext.getImageData(0, 0, width, height);
+      if (!this.lastImageData) {
+        this.lastImageData = this.backgroundContext.getImageData(0, 0, width, height);
+      }
+      blendedData = this.backgroundContext.createImageData(width, height);
+      window.differenceAccuracy(blendedData.data, sourceData.data, this.lastImageData.data);
+      this.differenceContext.putImageData(blendedData, 0, 0);
+      this.lastImageData = sourceData;
+      _ref = this.subscribers;
+      _results = [];
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        subscriber = _ref[_i];
+        _results.push(subscriber(sourceData, blendedData));
+      }
+      return _results;
+    };
+
+    VideoSource.prototype.subscribeToUpdate = function(subscriber) {
+      return this.subscribers.push(subscriber);
+    };
+
+    return VideoSource;
+
+  })();
+
+  fastAbs = function(value) {
+    return (value ^ (value >> 31)) - (value >> 31);
+  };
+
+  threshold = function(value) {
+    if (value > 0x15) {
+      return 0xFF;
+    } else {
+      return 0;
+    }
+  };
+
+  window.differenceAccuracy = function(target, data1, data2) {
+    var average1, average2, diff, i, _results;
+    if (data1.length !== data2.length) {
+      return null;
+    }
+    i = 0;
+    _results = [];
+    while (i < (data1.length * 0.25)) {
+      average1 = (data1[4 * i] + data1[4 * i + 1] + data1[4 * i + 2]) / 3;
+      average2 = (data2[4 * i] + data2[4 * i + 1] + data2[4 * i + 2]) / 3;
+      diff = threshold(fastAbs(average1 - average2));
+      target[4 * i] = diff;
+      target[4 * i + 1] = diff;
+      target[4 * i + 2] = diff;
+      target[4 * i + 3] = 0xFF;
+      _results.push(++i);
+    }
+    return _results;
+  };
+
+  WallDisplay = (function() {
+    function WallDisplay(dotsw, dotsh) {
+      this.dotsw = dotsw;
+      this.dotsh = dotsh;
+    }
+
+    WallDisplay.prototype.initialize = function(screenCallback) {
+      return this.callback = screenCallback;
+    };
+
+    return WallDisplay;
+
+  })();
+
+  CSSWallDisplay = (function(_super) {
+    __extends(CSSWallDisplay, _super);
+
+    function CSSWallDisplay() {
+      _ref = CSSWallDisplay.__super__.constructor.apply(this, arguments);
+      return _ref;
+    }
+
+    CSSWallDisplay.prototype.initialize = function(screenCallback) {
+      var dot, i, left, _i, _ref1,
+        _this = this;
+      CSSWallDisplay.__super__.initialize.call(this, screenCallback);
+      this.wallDiv = $("<div id='circle-container'>");
+      this.dotDivs = [];
+      for (i = _i = 0, _ref1 = this.dotsw * this.dotsh; 0 <= _ref1 ? _i < _ref1 : _i > _ref1; i = 0 <= _ref1 ? ++_i : --_i) {
+        left = dot = $("<div>").addClass('dot');
+        this.dotDivs.push(dot);
+        this.wallDiv.append(dot);
+      }
+      this.layoutDots();
+      this.updateScreen();
+      $("body").append(this.wallDiv);
+      this.interval = setInterval(function() {
+        return _this.updateScreen();
+      }, 75);
+      return $(window).resize(function() {
+        return _this.layoutDots();
+      });
+    };
+
+    CSSWallDisplay.prototype.layoutDots = function() {
+      var col, contentHeight, contentWidth, dotWidth, i, left, leftOffset, row, screenHeight, screenWidth, top, topOffset, _i, _ref1;
+      screenWidth = $(window).width();
+      screenHeight = $(window).height();
+      dotWidth = Math.floor(Math.min(screenWidth / this.dotsw, screenHeight / this.dotsh));
+      contentWidth = dotWidth * this.dotsw;
+      contentHeight = dotWidth * this.dotsh;
+      leftOffset = Math.round((screenWidth - contentWidth) / 2.0);
+      topOffset = Math.round((screenHeight - contentHeight) / 2.0);
+      for (i = _i = 0, _ref1 = this.dotDivs.length; 0 <= _ref1 ? _i < _ref1 : _i > _ref1; i = 0 <= _ref1 ? ++_i : --_i) {
+        row = Math.floor(i / this.dotsw);
+        col = i % this.dotsw;
+        left = dotWidth * col + leftOffset;
+        top = dotWidth * row + topOffset;
+        this.dotDivs[i].css("left", left).css("top", top).css("width", dotWidth).css("height", dotWidth);
+      }
+      return null;
+    };
+
+    CSSWallDisplay.prototype.updateScreen = function() {
+      var color, data, i, time, _i, _ref1, _results;
+      time = new Date().getTime();
+      if (!this.lastTime) {
+        this.lastTime = time;
+      }
+      console.log(1000 / (time - this.lastTime) + " fps");
+      this.lastTime = time;
+      data = this.callback(time);
+      _results = [];
+      for (i = _i = 0, _ref1 = this.dotDivs.length; 0 <= _ref1 ? _i < _ref1 : _i > _ref1; i = 0 <= _ref1 ? ++_i : --_i) {
+        color = data.get(i);
+        _results.push(this.dotDivs[i].css("background-color", "rgb(" + color.toRGB() + ")"));
+      }
+      return _results;
+    };
+
+    return CSSWallDisplay;
+
+  })(WallDisplay);
+
+  $(function() {
+    var app, settings;
+    settings = {
+      displayClass: CSSWallDisplay,
+      dotWidth: 40
+    };
+    app = new LivingWallApp(settings);
+    return app.run();
+  });
+
+  LivingWallApp = (function() {
+    function LivingWallApp(settings) {
+      this.video = new VideoSource();
+      this.startingControllers = [OpeningOverlayController, LivingWallController];
+      this.settings = settings;
+    }
+
+    LivingWallApp.prototype.run = function() {
+      var c, controller, _i, _len, _ref1, _results;
+      _ref1 = this.startingControllers;
+      _results = [];
+      for (_i = 0, _len = _ref1.length; _i < _len; _i++) {
+        controller = _ref1[_i];
+        c = new controller(this);
+        _results.push(c.run());
+      }
+      return _results;
+    };
+
+    return LivingWallApp;
+
+  })();
 
   Util = (function() {
     function Util() {}
@@ -614,220 +843,5 @@
     return Easing;
 
   })();
-
-  VideoSource = (function() {
-    function VideoSource() {
-      this.backgroundCanvas = $("#background-canvas")[0];
-      this.differenceCanvas = $("#difference-canvas")[0];
-      this.backgroundContext = this.backgroundCanvas.getContext('2d');
-      this.differenceContext = this.differenceCanvas.getContext('2d');
-      this.backgroundContext.translate(this.backgroundCanvas.width, 0);
-      this.backgroundContext.scale(-1, 1);
-      this.isInitialized = false;
-    }
-
-    VideoSource.prototype.getVideoWidth = function() {
-      return this.backgroundCanvas.width;
-    };
-
-    VideoSource.prototype.getVideoHeight = function() {
-      return this.backgroundCanvas.height;
-    };
-
-    VideoSource.prototype.initialize = function(callback) {
-      var gUM,
-        _this = this;
-      if (Modernizr.getusermedia) {
-        callback(false, "Sorry, you don't have webcam support.");
-      }
-      gUM = Modernizr.prefixed('getUserMedia', navigator);
-      gUM({
-        video: true
-      }, function(localStream) {
-        _this.video = document.querySelector('video');
-        _this.video.src = window.URL.createObjectURL(localStream);
-        $(window).resize(function() {
-          return _this.resize();
-        });
-        _this.resize();
-        _this.isInitialized = true;
-        return callback(true);
-      }, function(err) {
-        console.log(err);
-        return callback(false, "Could not open up webcam (" + err.name + ")");
-      });
-      return this.subscribers = [];
-    };
-
-    VideoSource.prototype.resize = function() {
-      $(this.backgroundCanvas).width($(window).width());
-      $(this.backgroundCanvas).height($(window).height());
-      $(this.differenceCanvas).width($(window).width());
-      return $(this.differenceCanvas).height($(window).height());
-    };
-
-    VideoSource.prototype.update = function() {
-      var blendedData, height, sourceData, subscriber, width, _i, _len, _ref1, _results;
-      if (!this.isInitialized) {
-        return;
-      }
-      this.backgroundContext.drawImage(this.video, 0, 0, this.video.width, this.video.height);
-      width = this.backgroundCanvas.width;
-      height = this.backgroundCanvas.height;
-      sourceData = this.backgroundContext.getImageData(0, 0, width, height);
-      if (!this.lastImageData) {
-        this.lastImageData = this.backgroundContext.getImageData(0, 0, width, height);
-      }
-      blendedData = this.backgroundContext.createImageData(width, height);
-      window.differenceAccuracy(blendedData.data, sourceData.data, this.lastImageData.data);
-      this.differenceContext.putImageData(blendedData, 0, 0);
-      this.lastImageData = sourceData;
-      _ref1 = this.subscribers;
-      _results = [];
-      for (_i = 0, _len = _ref1.length; _i < _len; _i++) {
-        subscriber = _ref1[_i];
-        _results.push(subscriber(sourceData, blendedData));
-      }
-      return _results;
-    };
-
-    VideoSource.prototype.subscribeToUpdate = function(subscriber) {
-      return this.subscribers.push(subscriber);
-    };
-
-    return VideoSource;
-
-  })();
-
-  fastAbs = function(value) {
-    return (value ^ (value >> 31)) - (value >> 31);
-  };
-
-  threshold = function(value) {
-    if (value > 0x15) {
-      return 0xFF;
-    } else {
-      return 0;
-    }
-  };
-
-  window.differenceAccuracy = function(target, data1, data2) {
-    var average1, average2, diff, i, _results;
-    if (data1.length !== data2.length) {
-      return null;
-    }
-    i = 0;
-    _results = [];
-    while (i < (data1.length * 0.25)) {
-      average1 = (data1[4 * i] + data1[4 * i + 1] + data1[4 * i + 2]) / 3;
-      average2 = (data2[4 * i] + data2[4 * i + 1] + data2[4 * i + 2]) / 3;
-      diff = threshold(fastAbs(average1 - average2));
-      target[4 * i] = diff;
-      target[4 * i + 1] = diff;
-      target[4 * i + 2] = diff;
-      target[4 * i + 3] = 0xFF;
-      _results.push(++i);
-    }
-    return _results;
-  };
-
-  MovementOverlay = (function(_super) {
-    __extends(MovementOverlay, _super);
-
-    function MovementOverlay(app, w, h) {
-      var i, _i, _ref1,
-        _this = this;
-      this.video = app.video;
-      app.video.subscribeToUpdate(function(source, blended) {
-        return _this.updateColors(source, blended);
-      });
-      this.w = w;
-      this.h = h;
-      this.colors = new ColorMatrix(w, h, new Color(0, 0, 0));
-      this.brightnessHistory = [];
-      for (i = _i = 0, _ref1 = w * h; 0 <= _ref1 ? _i < _ref1 : _i > _ref1; i = 0 <= _ref1 ? ++_i : --_i) {
-        this.brightnessHistory.push(0);
-      }
-    }
-
-    MovementOverlay.prototype.updateColors = function(source, blended) {
-      var bh, black, blendedData, brightness, bsum, color, count, dampingRatio, doth, dotw, dx, dy, gsum, hue, mergedColor, newColor, propagationRate, rsum, vh, vw, x, y, _i, _j, _k, _ref1, _ref2, _ref3, _results;
-      black = new Color(0, 0, 0);
-      if (this.firstUpdate) {
-        if (Util.now() - this.firstUpdate < 500) {
-          return;
-        }
-      } else {
-        this.firstUpdate = Util.now();
-      }
-      propagationRate = 0.3;
-      dampingRatio = 0.1;
-      for (x = _i = 0, _ref1 = this.w; 0 <= _ref1 ? _i < _ref1 : _i > _ref1; x = 0 <= _ref1 ? ++_i : --_i) {
-        for (y = _j = 0, _ref2 = this.h; 0 <= _ref2 ? _j < _ref2 : _j > _ref2; y = 0 <= _ref2 ? ++_j : --_j) {
-          vw = this.video.getVideoWidth();
-          vh = this.video.getVideoHeight();
-          dotw = vw / this.w;
-          doth = vh / this.h;
-          blendedData = this.video.differenceContext.getImageData(x * dotw, y * doth, dotw, doth);
-          brightness = ImageUtil.averageBrightness(blendedData.data);
-          bh = this.brightnessHistory[y * this.w + x];
-          bh = bh * 0.7 + (brightness / 256.0) * 0.3;
-          this.brightnessHistory[y * this.w + x] = bh;
-          hue = 0.7 - bh * 0.6;
-          if (brightness > 10) {
-            newColor = Color.fromHSV(hue, brightness / 256, brightness / 256);
-            this.colors.screen(x, y, newColor);
-          }
-        }
-      }
-      _results = [];
-      for (x = _k = 0, _ref3 = this.w; 0 <= _ref3 ? _k < _ref3 : _k > _ref3; x = 0 <= _ref3 ? ++_k : --_k) {
-        _results.push((function() {
-          var _l, _m, _n, _ref4, _results1;
-          _results1 = [];
-          for (y = _l = 0, _ref4 = this.h; 0 <= _ref4 ? _l < _ref4 : _l > _ref4; y = 0 <= _ref4 ? ++_l : --_l) {
-            rsum = 0.0;
-            gsum = 0.0;
-            bsum = 0.0;
-            count = 0.0;
-            for (dx = _m = -1; _m <= 1; dx = ++_m) {
-              for (dy = _n = -1; _n <= 1; dy = ++_n) {
-                if (x + dx < 0 || x + dx >= this.w) {
-                  continue;
-                }
-                if (y + dy < 0 || y + dy >= this.h) {
-                  continue;
-                }
-                color = this.colors.getAt(x + dx, y + dy);
-                rsum += color.r;
-                gsum += color.g;
-                bsum += color.b;
-                count++;
-              }
-            }
-            mergedColor = new Color(rsum / count, gsum / count, bsum / count);
-            this.colors.add(x, y, mergedColor, propagationRate);
-            _results1.push(this.colors.getAt(x, y).darken(0.1));
-          }
-          return _results1;
-        }).call(this));
-      }
-      return _results;
-    };
-
-    MovementOverlay.prototype.addColor = function(matrix, time) {
-      var x, y, _i, _j, _ref1, _ref2;
-      for (x = _i = 0, _ref1 = this.w; 0 <= _ref1 ? _i < _ref1 : _i > _ref1; x = 0 <= _ref1 ? ++_i : --_i) {
-        for (y = _j = 0, _ref2 = this.h; 0 <= _ref2 ? _j < _ref2 : _j > _ref2; y = 0 <= _ref2 ? ++_j : --_j) {
-          matrix.screen(x, y, this.colors.getAt(x, y));
-          matrix.add(x, y, this.colors.getAt(x, y), 0.2);
-        }
-      }
-      return true;
-    };
-
-    return MovementOverlay;
-
-  })(ColorSource);
 
 }).call(this);
